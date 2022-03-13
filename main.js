@@ -4,31 +4,70 @@ const YEAR = 2022;
 const AYE = 1;
 const NAY = 2;
 
-const N_VOTERS = 4; // todo: from server
-
 const monthNames = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
-
 const stateClasses = ['state-none', 'state-upvote', 'state-downvote'];
 
-const dateString2VoteCell = {}; // dateString => td
+let dateString2UserCell = {}; // dateString => td
+let dateString2VoteCell = {}; // dateString => td
 
-const currentUserVotes = {}; // dateString => {0|1|2}
+let whoami;
+let nVoters = 1;
 
-const votesFor = {
-	'Sun Jul 03 2022': 4,
-	'Mon Jul 04 2022': 1,
-	'Tue Jul 05 2022': 2,
-	'Wed Jul 06 2022': 3,
-}; // dateString => int
-const votesAgainst = {
-	'Thu Jul 07 2022': 3,
-	'Fri Jul 08 2022': 2,
-	'Sat Jul 09 2022': 1,
-	'Sun Jul 10 2022': 4,
-}; // dateString => int
-const allVotes = [null, votesFor, votesAgainst];
+let currentUserVotes = {}; // dateString => {0|1|2}
+let ayeVotes = {}; // dateString => [user1, user2, ...]
+let nayVotes = {}; // dateString => [user1, user2, ...]
+let allVotes = [null, ayeVotes, nayVotes];
+
+let $dataDisplay;
+
+function postVotesToServer() {
+	fetch('/cast-votes.json', {
+		method: 'POST',
+		headers: {
+			'Content-type': 'application/json',
+		},
+		body: JSON.stringify({ votes: currentUserVotes }),
+	});
+}
+
+
+function serverGet() {
+	function buildVotesDict(votesFromServer, filterValue) {
+		const filtered = votesFromServer.filter(v => v.value == filterValue);
+		return filtered.reduce((acc, vote) => {
+			if (!acc[vote.date]) acc[vote.date] = [];
+			acc[vote.date].push(vote.user);
+			return acc;
+		}, {});
+	}
+	const payload = fetch('/votes.json', {}).then(response => {
+		response.json().then(payload => {
+			whoami = payload.whoami;
+			document.title = whoami;
+			/* Build ayeVotes, nayVotes, allVotes */
+			ayeVotes = buildVotesDict(payload.votes, AYE);
+			nayVotes = buildVotesDict(payload.votes, NAY);
+			allVotes = [null, ayeVotes, nayVotes];
+			/* Calc nVoters */
+			const allVoters = payload.votes.reduce((acc, vote) => {
+				acc.add(vote.user);
+				return acc;
+			}, new Set());
+			allVoters.add(whoami);
+			nVoters = allVoters.size;
+			/* Set colours */
+			for (const vote of payload.votes) {
+				StatsMonther.update(vote.date);
+				if (vote.user == whoami)
+					UserMonther.colorDate(vote.date, vote.value);
+			}
+			$('#loading-screen').hide();
+			$('#main').show();
+		});
+	});
+}
 
 class Monther {
 	constructor (target, month) {
@@ -67,7 +106,7 @@ class Monther {
 	}
 }
 
-class VoteMonther extends Monther {
+class UserMonther extends Monther {
 	write () {
 		Monther.prototype.write.call(this)
 		$(this.table).find('td').click((evt) => {
@@ -75,12 +114,6 @@ class VoteMonther extends Monther {
 			// update user vote and all votes
 			this.incrementState(elem);
 		});
-	}
-
-	/* Grab td for same date in right side */
-	getSister (tdElem) {
-		const dateString = getDateString(tdElem);
-		return dateString2VoteCell[dateString];
 	}
 
 	incrementVotes(forVsAgainst, dateString, step) {
@@ -95,10 +128,15 @@ class VoteMonther extends Monther {
 		// Update user vote
 		currentUserVotes[dateString] = newState;
 		// Update all votes
-		if (oldState != 0)
-			this.incrementVotes(oldState, dateString, -1);
-		if (newState != 0)
-			this.incrementVotes(newState, dateString, 1);
+		if (oldState != 0) {
+			const oldVotes = allVotes[oldState][dateString]||[];
+			allVotes[oldState][dateString] = oldVotes.filter(x => x != whoami);
+		}
+		if (newState != 0) {
+			if (! allVotes[newState][dateString])
+				allVotes[newState][dateString] = [];
+			allVotes[newState][dateString].push(whoami);
+		}
 		// Update class
 		stateClasses.forEach((klass, i) => {
 			if (i == newState)
@@ -108,11 +146,24 @@ class VoteMonther extends Monther {
 		});
 		// Repaint sister cell
 		StatsMonther.update(dateString);
-		// todo ajax update server
+		// Ajax update server
+		postVotesToServer();
 	}
 
-	processDateCell (td) {
-		$(td).addClass('clickable')
+	static colorDate(dateString, voteValue) {
+		const tdElem = dateString2UserCell[dateString];
+		stateClasses.forEach((klass, i) => {
+			if (i == voteValue)
+				tdElem.addClass(klass);
+			else
+				tdElem.removeClass(klass);
+		});
+	}
+
+	processDateCell (td, date) {
+		const dateString = getDateString(td);
+		dateString2UserCell[dateString] = $(td);
+		$(td).addClass('clickable');
 	}
 }
 
@@ -140,24 +191,51 @@ class StatsMonther extends Monther {
 		tr.appendChild(nayCell);
 		table.appendChild(tr);
 		td.appendChild(table);
-		StatsMonther.update(date.toDateString());
+		$(td).mouseover(evt => {
+			StatsMonther.setDataDisplay(dateString);
+			$dataDisplay.show();
+		});
+	}
+
+	static setDataDisplay(dateString) {
+		$dataDisplay[0].innerHTML = '';
+		$dataDisplay.append(`<div>${dateString}</div>`);
+		let ul, li;
+		$dataDisplay.append('<div>Votes for</div>');
+		ul = document.createElement('ul');
+		const ayeVotes = allVotes[AYE][dateString] || [];
+		for (const voter of ayeVotes) {
+			li = document.createElement('li');
+			li.innerHTML = voter;
+			ul.appendChild(li)
+		}
+		$dataDisplay[0].appendChild(ul);
+		$dataDisplay.append('<div>Votes against</div>');
+		ul = document.createElement('ul');
+		const nayVotes = allVotes[NAY][dateString] || [];
+		for (const voter of nayVotes) {
+			li = document.createElement('li');
+			li.innerHTML = voter;
+			ul.appendChild(li)
+		}
+		$dataDisplay[0].appendChild(ul);
 	}
 
 	static update(dateString) {
 		const $cell = $(dateString2VoteCell[dateString]);
 		const $ayeCell = $cell.find('.for');
 		const $nayCell = $cell.find('.against');
-		const ayeVotes = parseInt(allVotes[AYE][dateString]) || 0;
-		const nayVotes = parseInt(allVotes[NAY][dateString]) || 0;
-		StatsMonther.setColor(AYE, ayeVotes, $ayeCell);
-		StatsMonther.setColor(NAY, nayVotes, $nayCell);
+		const ayeVotes = allVotes[AYE][dateString]||[];
+		const nayVotes = allVotes[NAY][dateString]||[];
+		StatsMonther.setColor(AYE, ayeVotes.length, $ayeCell);
+		StatsMonther.setColor(NAY, nayVotes.length, $nayCell);
 	}
 
-	static setColor (forOrNay, nVotes, targetTd) {
-		const numerator = N_VOTERS - (nVotes||0);
-		const fraction = numerator * 255 / N_VOTERS;
+	static setColor (ayeOrNay, nVotes, targetTd) {
+		const numerator = nVoters - (nVotes||0);
+		const fraction = numerator * 255 / nVoters;
 		const colors = [ fraction, fraction, fraction ];
-		colors[1-(forOrNay-1)] = 255;
+		colors[1-(ayeOrNay-1)] = 255;
 		$(targetTd).css('background-color', `rgb(${colors.join(', ')})`);
 	}
 }
@@ -166,16 +244,20 @@ function getDateString(td) {
 	return $(td).data('date');
 }
 
-function getVotes(forOrNay, td) {
+function getVotes(ayeOrNay, td) {
 	const dateString = getDateString(td);
-	return allVotes[forOrNay][dateString];
+	return allVotes[ayeOrNay][dateString];
 }
 
 $(document).ready(() => {
+	const main = $('#main');
+	main.hide();
 	const left = $('#left');
 	const right = $('#right');
+	$dataDisplay = $('#data-display')
 	for (i = 6; i < 9; i++) {
-		new VoteMonther(left, i).write();
+		new UserMonther(left, i).write();
 		new StatsMonther(right, i).write();	
 	}
+	serverGet();
 });

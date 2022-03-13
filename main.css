@@ -1,9 +1,11 @@
 .red {
 	color: red;
 }
+
 td {
 	padding: 0 2px;
 	text-align: center;
+	vertical-align: top;
 }
 td td:first-child {
 	width: 2em;
@@ -11,6 +13,10 @@ td td:first-child {
 }
 table {
 	-webkit-border-vertical-spacing: 0;
+}
+
+#data-display {
+	height: 10em;
 }
 
 #left .clickable {
