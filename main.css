@@ -1,0 +1,27 @@
+.red {
+	color: red;
+}
+td {
+	padding: 0;
+}
+td td:first-child {
+	width: 2em;
+	text-align: right;
+}
+table {
+	-webkit-border-vertical-spacing: 0;
+}
+
+#left .clickable {
+	cursor: pointer;
+}
+#left .state-none {
+	background-color: #eee;
+}
+#left .state-upvote {
+	background-color: #cfc;
+}
+#left .state-downvote {
+	background-color: #fcc;
+}
+
