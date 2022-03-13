@@ -3,12 +3,13 @@ import sqlite3, datetime
 
 app = Flask(__name__)
 
+DB_FILE = '/var/www/reunion/calendar-votes.db'
 DATE_FMT = '%a %b %d %Y'
 
 # Run each query in separate session b/c different requests can't share db
 # objects, and there should be only one command per request.
 def db_exec(cmd, args=()):
-	conn = sqlite3.connect('calendar-votes.db')
+	conn = sqlite3.connect(DB_FILE)
 	cur = conn.cursor()
 	cur.execute(cmd, args)
 	conn.commit()
@@ -32,7 +33,7 @@ def upsert_votes(whoami, votes):
 		db_exec(stmt, (date, whoami, value, value, date, whoami))
 
 def select_votes():
-	conn = sqlite3.connect('calendar-votes.db')
+	conn = sqlite3.connect(DB_FILE)
 	cur = conn.cursor()
 	str2str = lambda d: datetime.datetime.strptime(d, '%Y-%m-%d 00:00:00').strftime(DATE_FMT)
 	out = [{

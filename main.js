@@ -255,7 +255,7 @@ $(document).ready(() => {
 	const left = $('#left');
 	const right = $('#right');
 	$dataDisplay = $('#data-display')
-	for (i = 6; i < 9; i++) {
+	for (i = 5; i < 9; i++) {
 		new UserMonther(left, i).write();
 		new StatsMonther(right, i).write();	
 	}
