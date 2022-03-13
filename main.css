@@ -2,7 +2,8 @@
 	color: red;
 }
 td {
-	padding: 0;
+	padding: 0 2px;
+	text-align: center;
 }
 td td:first-child {
 	width: 2em;

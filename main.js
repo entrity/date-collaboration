@@ -1,10 +1,10 @@
 const FIRST = new Date(2022, 6, 1);
 const LAST = new Date(2022, 8, 31);
 const YEAR = 2022;
-const FOR = 1;
-const AGAINST = 2;
+const AYE = 1;
+const NAY = 2;
 
-const N_VOTERS = 3;
+const N_VOTERS = 4; // todo: from server
 
 const monthNames = ["January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
@@ -16,8 +16,18 @@ const dateString2VoteCell = {}; // dateString => td
 
 const currentUserVotes = {}; // dateString => {0|1|2}
 
-const votesFor = {} // dateString => int
-const votesAgainst = {} // dateString => int
+const votesFor = {
+	'Sun Jul 03 2022': 4,
+	'Mon Jul 04 2022': 1,
+	'Tue Jul 05 2022': 2,
+	'Wed Jul 06 2022': 3,
+}; // dateString => int
+const votesAgainst = {
+	'Thu Jul 07 2022': 3,
+	'Fri Jul 08 2022': 2,
+	'Sat Jul 09 2022': 1,
+	'Sun Jul 10 2022': 4,
+}; // dateString => int
 const allVotes = [null, votesFor, votesAgainst];
 
 class Monther {
@@ -97,9 +107,7 @@ class VoteMonther extends Monther {
 				tdElem.removeClass(klass);
 		});
 		// Repaint sister cell
-		const sister = this.getSister(tdElem);
-		setColor(FOR, allVotes[FOR][dateString], sister.find('td.for'));
-		setColor(AGAINST, allVotes[AGAINST][dateString], sister.find('td.against'));
+		StatsMonther.update(dateString);
 		// todo ajax update server
 	}
 
@@ -114,24 +122,43 @@ class StatsMonther extends Monther {
 	}
 
 	processDateCell (td, date) {
-		td.innerHTML=''
+		td.innerHTML = '';
 		const dateString = getDateString(td);
 		dateString2VoteCell[dateString] = $(td);
 		const table = document.createElement('table');
 		const tr = document.createElement('tr')
-		this.dateCell = document.createElement('td');
-		this.dateCell.innerHTML = date.getDate();
-		tr.appendChild(this.dateCell);
-		this.forCell = document.createElement('td');
-		$(this.forCell).addClass('for')
-		this.forCell.innerHTML = '+';
-		tr.appendChild(this.forCell);
-		this.againstCell = document.createElement('td');
-		$(this.againstCell).addClass('against')
-		this.againstCell.innerHTML = '&ndash;';
-		tr.appendChild(this.againstCell);
+		const dateCell = document.createElement('td');
+		dateCell.innerHTML = date.getDate();
+		tr.appendChild(dateCell);
+		const ayeCell = document.createElement('td');
+		$(ayeCell).addClass('for')
+		ayeCell.innerHTML = '+';
+		tr.appendChild(ayeCell);
+		const nayCell = document.createElement('td');
+		$(nayCell).addClass('against')
+		nayCell.innerHTML = '&ndash;';
+		tr.appendChild(nayCell);
 		table.appendChild(tr);
 		td.appendChild(table);
+		StatsMonther.update(date.toDateString());
+	}
+
+	static update(dateString) {
+		const $cell = $(dateString2VoteCell[dateString]);
+		const $ayeCell = $cell.find('.for');
+		const $nayCell = $cell.find('.against');
+		const ayeVotes = parseInt(allVotes[AYE][dateString]) || 0;
+		const nayVotes = parseInt(allVotes[NAY][dateString]) || 0;
+		StatsMonther.setColor(AYE, ayeVotes, $ayeCell);
+		StatsMonther.setColor(NAY, nayVotes, $nayCell);
+	}
+
+	static setColor (forOrNay, nVotes, targetTd) {
+		const numerator = N_VOTERS - (nVotes||0);
+		const fraction = numerator * 255 / N_VOTERS;
+		const colors = [ fraction, fraction, fraction ];
+		colors[1-(forOrNay-1)] = 255;
+		$(targetTd).css('background-color', `rgb(${colors.join(', ')})`);
 	}
 }
 
@@ -139,12 +166,9 @@ function getDateString(td) {
 	return $(td).data('date');
 }
 
-function setColor (forVsAgainst, nVotes, targetTd) {
-	const numerator = N_VOTERS - (nVotes||0);
-	const fraction = numerator * 255 / N_VOTERS;
-	const colors = [ fraction, fraction, fraction ];
-	colors[1-(forVsAgainst-1)] = 255;
-	$(targetTd).css('background-color', `rgb(${colors.join(', ')})`);
+function getVotes(forOrNay, td) {
+	const dateString = getDateString(td);
+	return allVotes[forOrNay][dateString];
 }
 
 $(document).ready(() => {
