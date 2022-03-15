@@ -11,6 +11,8 @@ const stateClasses = ['state-none', 'state-upvote', 'state-downvote'];
 
 let dateString2UserCell = {}; // dateString => td
 let dateString2VoteCell = {}; // dateString => td
+let dateString2NayCell = {}; // dateString => td
+let dateString2AyeCell = {}; // dateString => td
 
 let whoami;
 let nVoters = 1;
@@ -60,6 +62,8 @@ function serverGet() {
 			/* Set colours */
 			for (const vote of payload.votes) {
 				StatsMonther.update(vote.date);
+				NayMonther.update(vote.date);
+				AyeMonther.update(vote.date);
 				if (vote.user == whoami)
 					UserMonther.colorDate(vote.date, vote.value);
 			}
@@ -106,9 +110,39 @@ class Monther {
 	}
 }
 
+class NayMonther extends Monther {
+	processDateCell (td, date) {
+		const dateString = getDateString(td);
+		dateString2NayCell[dateString] = $(td);
+		NayMonther.update(dateString);
+	}
+
+	static update(dateString) {
+		const nVotes = (nayVotes[dateString]||[]).length;
+		const color = 255 * (nVoters - nVotes) / nVoters;
+		const $td = dateString2NayCell[dateString];
+		$td.css('background-color', `rgb(255, ${color}, ${color})`);
+	}
+}
+
+class AyeMonther extends Monther {
+	processDateCell (td, date) {
+		const dateString = getDateString(td);
+		dateString2AyeCell[dateString] = $(td);
+		AyeMonther.update(dateString);
+	}
+
+	static update(dateString) {
+		const nVotes = (ayeVotes[dateString]||[]).length;
+		const color = 255 * (nVoters - nVotes) / nVoters;
+		const $td = dateString2AyeCell[dateString];
+		$td.css('background-color', `rgb(${color}, 255, ${color})`);
+	}
+}
+
 class UserMonther extends Monther {
 	write () {
-		Monther.prototype.write.call(this)
+		Monther.prototype.write.call(this);
 		$(this.table).find('td').click((evt) => {
 			const elem = $(evt.target);
 			// update user vote and all votes
@@ -144,8 +178,10 @@ class UserMonther extends Monther {
 			else
 				tdElem.removeClass(klass);
 		});
-		// Repaint sister cell
+		// Repaint sister cells
 		StatsMonther.update(dateString);
+		NayMonther.update(dateString);
+		AyeMonther.update(dateString);
 		// Ajax update server
 		postVotesToServer();
 	}
@@ -254,10 +290,14 @@ $(document).ready(() => {
 	main.hide();
 	const left = $('#left');
 	const right = $('#right');
+	const nayTable = $('#nay-votes');
+	const ayeTable = $('#aye-votes');
 	$dataDisplay = $('#data-display')
 	for (i = 5; i < 9; i++) {
 		new UserMonther(left, i).write();
 		new StatsMonther(right, i).write();	
+		new NayMonther(nayTable, i).write();
+		new AyeMonther(ayeTable, i).write();
 	}
 	serverGet();
 });
