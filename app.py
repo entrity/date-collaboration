@@ -56,6 +56,12 @@ def html():
 def login_html():
 	return send_from_directory('.', 'login.html')
 
+@app.route("/logout")
+def logout():
+	resp = make_response(redirect("/login.html"))
+	resp.set_cookie('whoami', '', expires=0)
+	return resp
+
 @app.route("/main.js")
 def js():
 	return send_from_directory('.', 'main.js')
